@@ -1,0 +1,24 @@
+first_name,last_name,address,city,state,country,postcode,phone,dob,email,password
+Hoa,Ly,Duong So 1,Ho Chi Minh,Ho Chi Minh,Viet Nam,100000,912345678,1990-01-01,hoa.ly@example.com,supersecret1
+Minh,Tran,456 Nguyen Hue,Ho Chi Minh,Ho Chi Minh,Viet Nam,700000,987654321,1985-05-15,minh.tran@example.com,P@ssw0rd2
+Nguyen,Anh,789 Le Loi,Ha Noi,Ha Noi,Viet Nam,100000,911222333,1992-12-01,anh.nguyen@example.com,Secure123
+John,Doe,123 Main St,New York,NY,USA,10001,12025550123,1990-06-10,john.doe@example.com,JohnPass44
+Anne,ONeill,234 Oak Rd,Dublin,Leinster,Ireland,D02X285,3.54E+11,1988-03-22,anne.oneill@example.ie,AnneMarie85
+Loa,Ly,Duong So 2,Ho Chi Minh,Ho Chi Minh,Viet Nam,100000,912345678,1990-01-01,loa.ly@example.com,supersecret1
+Mang,Tran,454 Nguyen Hue,Ho Chi Minh,Ho Chi Minh,Viet Nam,700000,987654321,1985-05-15,mang.tran@example.com,P@ssw0rd2
+Nguyen,Anh,78 Le Loi,Ha Noi,Ha Noi,Viet Nam,100000,911222333,1992-12-01,,Secure123
+John,Doan,13 Main St,New York,NY,USA,10001,12025550123,1990-06-10,john.doan@example.com,JohnPass44
+Ann,ONeill,24 Oak Rd,Dublin,Leinster,Ireland,D02X285,987654321,1988-03-22,ann.oneill@example.ie,AnnMarie85
+Loa,Nguyen,Duong So 2,Ho Chi Minh,Ho Chi Minh,Viet Nam,100000,912345678,1990-01-01,loa.nguyen@example.com,supersecret1
+Man,Tran,454 Nguyen Hue,Ho Chi Minh,Ho Chi Minh,Viet Nam,700000,987654321,1985-05-15,man.tran@example.com,P@ssw0rd2
+Nguyen,Anh,78 Le Loi,Ha Noi,Ha Noi,Viet Nam,100000,911222333,1992-12-01,invalid-email,Secure123
+Loan,Nguyen,Duong So 2,Ho Chi Minh,Ho Chi Minh,Viet Nam,100000,912345678,1990-01-01,loan.nguyen@example.com,supersecret1
+Minh,Tran,454 Nguyen Hue,Ho Chi Minh,Ho Chi Minh,Viet Nam,700000,987654321,1985-05-15,minh.tran@example.com,P@ssw0rd2
+Nguyen,Anh,78 Le Loi,Ha Noi,Ha Noi,Viet Nam,100000,911222333,1992-12-01,anh.nguyen@example.com,123
+Hoang,Nguyen,Duong So 2,Ho Chi Minh,Ho Chi Minh,Viet Nam,100000,912345678,1990-01-01,hoang.nguyen@example.com,supersecret1
+123,Tran,454 Nguyen Hue,Ho Chi Minh,Ho Chi Minh,Viet Nam,700000,987654321,1985-05-15,my.tran@example.com,P@ssw0rd2
+Nguyen,An,78 Le Loi,Ha Noi,Ha Noi,Viet Nam,100000,911222333,1992-12-01,loa.ly@example.com,P@ssw0rd2
+John,Doan,13 Main St,New York,NY,USA,10001,12025550123,1990-06-10,john.doing@example.com,JohnPass44
+Ann,Neill,24 Oak Rd,Dublin,Leinster,Ireland,10001,123m465789,1988-03-22,aneill@example.ie,AnnMarie85
+Liem,Nguyen,Duong So 2,Ho Chi Minh,Ho Chi Minh,Viet Nam,100000,912345678,1990-01-01,liem.nguyen@example.com,supersecret1
+Mannn,Tran,454 Nguyen Hue,Ho Chi Minh,Ho Chi Minh,Viet Nam,700000,987654321,2030-05-15,man.tra@example.com,P@ssw0rd2
