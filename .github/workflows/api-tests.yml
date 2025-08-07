@@ -1,3 +1,12 @@
+name: API Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
 jobs:
   run-postman:
     runs-on: ubuntu-latest
