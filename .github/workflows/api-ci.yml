@@ -73,21 +73,22 @@ jobs:
 
           postman collection run Login.postman_collection.json \
             --environment HW07.postman_environment.json \
-            --global-var "BASE_URL=http://localhost:8000/api" \
+            --global-var "base_url=http://localhost:8000/api" \
             --reporters cli,junit \
             --reporter-junit-export results/login.xml
 
           postman collection run Register.postman_collection.json \
             --environment HW07.postman_environment.json \
-            --global-var "BASE_URL=http://localhost:8000/api" \
+            --global-var "base_url=http://localhost:8000/api" \
             --reporters cli,junit \
             --reporter-junit-export results/register.xml
 
           postman collection run "Forget password.postman_collection.json" \
             --environment HW07.postman_environment.json \
-            --global-var "BASE_URL=http://localhost:8000/api" \
+            --global-var "base_url=http://localhost:8000/api" \
             --reporters cli,junit \
             --reporter-junit-export results/forgot-password.xml
+
 
       - name: Upload JUnit reports
         uses: actions/upload-artifact@v4
