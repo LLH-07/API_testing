@@ -99,6 +99,13 @@ jobs:
         run: |
           docker compose logs laravel-api --tail=100
 
+      - name: Show Laravel log
+        if: failure()
+        working-directory: practice-software-testing
+        run: |
+          docker compose exec -T laravel-api tail -n 50 storage/logs/laravel.log
+
+
             
 
       - name: Run Login Collection (data-driven)
