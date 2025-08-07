@@ -1,0 +1,56 @@
+name: API Tests with Postman CLI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:    # Cho phép chạy thủ công
+
+jobs:
+  test-api:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # 1) Cài Postman CLI
+      - name: Install Postman CLI
+        run: npm install -g @postman/cli
+
+      # 2) Đăng nhập với API Key (đã lưu trong Secrets)
+      - name: Login to Postman
+        run: postman login --with-api-key ${{ secrets.POSTMAN_API_KEY }}
+
+      # 3) Chạy register với 2 file dữ liệu
+      - name: Register Tests (file AU-01)
+        run: |
+          postman collection run Register.postman_collection.json \
+            --environment HW07.postman_environment.json \
+            --iteration-data AU-01.csv
+
+      - name: Register Tests (file AU-02-09)
+        run: |
+          postman collection run Register.postman_collection.json \
+            --environment HW07.postman_environment.json \
+            --iteration-data AU-02-09.csv
+
+      # 4) Chạy login
+      - name: Login Tests (AU-10-13)
+        run: |
+          postman collection run Login.postman_collection.json \
+            --environment HW07.postman_environment.json \
+            --iteration-data AU-10-13.csv
+
+      # 5) Chạy forgot-password
+      - name: Forgot-Password Tests (AU-14-17)
+        run: |
+          postman collection run "Forget password".postman_collection.json \
+            --environment HW07.postman_environment.json \
+            --iteration-data AU-14-17.csv
+
+      # 6) (Tuỳ chọn) Xuất báo cáo
+      - name: Publish HTML Report
+        run: |
+          postman report open
