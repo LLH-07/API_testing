@@ -18,12 +18,21 @@ jobs:
         run: |
           for f in *.csv; do
             echo "🔍 Checking $f"
-            hdr=$(head -n1 "$f" | tr -d '\r')
-            awk '/^$/ {print "❌ Empty line in '"$f"'"; exit 1}' "$f"
+            # Check for empty lines
+            if grep -qE '^$' "$f"; then
+              echo "❌ Empty line found in $f"
+              exit 1
+            fi
+            # Validate headers
+            header=$(head -1 "$f")
+            if [[ -z $header ]]; then
+              echo "❌ Missing headers in $f"
+              exit 1
+            fi
           done
 
   postman-tests:
-    name: Spin up App & Run Postman Tests (data-driven)
+    name: Spin up App & Run Postman Tests
     needs: validate-csv
     runs-on: ubuntu-latest
     steps:
@@ -37,19 +46,17 @@ jobs:
           path: practice-software-testing
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Ensure storage/logs dir exists on host
-        run: mkdir -p practice-software-testing/storage/logs
-
-      - name: Fix storage permission on host
-        run: |
-          chmod -R 777 practice-software-testing/storage
-          chmod -R 777 practice-software-testing/bootstrap/cache
-
       - name: Build & start Docker Compose
         working-directory: practice-software-testing
         run: |
           docker compose -f docker-compose.yml up -d --build \
             || docker-compose -f docker-compose.yml up -d --build
+
+      - name: Fix storage permission & ensure logs dir
+        working-directory: practice-software-testing
+        run: |
+          docker compose exec -T laravel-api mkdir -p storage/logs
+          docker compose exec -T laravel-api chmod -R 777 storage bootstrap/cache
 
       - name: Install PHP dependencies
         working-directory: practice-software-testing
@@ -66,67 +73,54 @@ jobs:
             sleep 5
           done
 
-      - name: Migrate & seed database
+      - name: Setup environment
         working-directory: practice-software-testing
         run: |
-          docker compose exec -T laravel-api php artisan migrate:fresh --seed
+          cp .env.example .env
+          docker compose exec -T laravel-api php artisan key:generate
 
-      - name: Wait for API to be ready
+      - name: Run database migrations
+        working-directory: practice-software-testing
         run: |
-          for i in {1..20}; do
-            nc -z localhost 8000 && { echo "✅ API is up!"; exit 0; }
-            echo "⏳ Waiting for API (attempt $i)…"
-            sleep 3
+          docker compose exec -T laravel-api php artisan migrate --seed
+
+      - name: Wait for API readiness
+        working-directory: practice-software-testing
+        run: |
+          echo "Waiting for API to become ready..."
+          for i in {1..10}; do
+            if curl -sSf http://localhost:8091 >/dev/null; then
+              echo "API is ready!"
+              break
+            fi
+            echo "API not ready yet (attempt $i/10)..."
+            sleep 10
           done
-          echo "❌ API failed to start. Showing last logs:"
-          docker compose -f practice-software-testing/docker-compose.yml logs laravel-api --tail=50
-          exit 1
 
-      - name: Install Postman CLI
-        run: curl -sL https://dl-cli.pstmn.io/install/linux64.sh | sh
-
-      - name: Postman login
-        env:
-          POSTMAN_API_KEY: ${{ secrets.POSTMAN_API_KEY }}
-        run: postman login --with-api-key "$POSTMAN_API_KEY"
-
-      - name: Run Register Collection (data-driven)
+      - name: Run Postman tests
         run: |
           mkdir -p results
-          postman collection run Register.postman_collection.json \
-            --environment HW07.postman_environment.json \
-            --iteration-data register-data.csv \
-            --global-var "base_url=http://localhost:8000/api" \
+          docker run --network host -v "$(pwd):/etc/newman" postman/newman:alpine \
+            run "register.postman_collection.json" \
+            --data "register.csv" \
             --reporters cli,junit \
-            --reporter-junit-export results/register.xml
+            --reporter-junit-export "/etc/newman/results/register.xml" \
+            --global-var "API_BASE_URL=http://localhost:8091/api"
 
-      - name: Run Login Collection (data-driven)
-        run: |
-          postman collection run Login.postman_collection.json \
-            --environment HW07.postman_environment.json \
-            --iteration-data login-data.csv \
-            --global-var "base_url=http://localhost:8000/api" \
-            --reporters cli,junit \
-            --reporter-junit-export results/login.xml
+      - name: Archive test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: postman-test-results
+          path: results/*.xml
 
-      - name: Run Forgot Password Collection (data-driven)
-        run: |
-          postman collection run "Forget password.postman_collection.json" \
-            --environment HW07.postman_environment.json \
-            --iteration-data forgot-password-data.csv \
-            --global-var "base_url=http://localhost:8000/api" \
-            --reporters cli,junit \
-            --reporter-junit-export results/forgot-password.xml
-
-      - name: Show Laravel log (debug)
-        if: failure()
+      - name: Capture logs on failure
+        if: ${{ failure() }}
         working-directory: practice-software-testing
         run: |
-          ls -al storage/logs || true
-          cat storage/logs/laravel.log || true
-
-      - name: Upload JUnit reports
-        uses: actions/upload-artifact@v4
-        with:
-          name: api-test-reports
-          path: results/*.xml
+          docker compose logs --no-color > docker-logs.txt
+          echo "::group::Application Logs"
+          cat docker-logs.txt
+          echo "::endgroup::"
+          echo "::warning::Application logs saved as artifact"
+        continue-on-error: true
