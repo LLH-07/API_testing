@@ -99,7 +99,7 @@ jobs:
             --environment ./tests/postman/env.json
 
       - name: Upload Postman results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: postman-results
           path: practice-software-testing/results/
