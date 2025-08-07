@@ -58,7 +58,6 @@ jobs:
           set -euxo pipefail
           # clear any old cache
           docker compose run --rm composer clear-cache || true
-
           # try up to 3 times, using --prefer-source to avoid ZIP extraction
           for i in 1 2 3; do
             docker compose run --rm composer install \
@@ -66,11 +65,9 @@ jobs:
               --optimize-autoloader \
               --ignore-platform-req=ext-ffi \
               --prefer-source && break
-
             echo "⚠️  Composer install failed (attempt $i), retrying in 5s…"
             sleep 5
           done
-
 
       # 5) Wait for API to be ready on port 8000
       - name: Wait for API to be ready
@@ -94,29 +91,64 @@ jobs:
           POSTMAN_API_KEY: ${{ secrets.POSTMAN_API_KEY }}
         run: postman login --with-api-key "$POSTMAN_API_KEY"
 
-      # 8) Run Postman Collections (override base_url → port 8000)
-      - name: Run Postman Collections
+      # 8) Convert AU-*.csv to register-data.csv
+      - name: Convert AU-*.csv to register-data.csv
+        run: |
+          pip install pandas
+          python <<EOF
+import pandas as pd
+import glob
+fields = [
+    "first_name","last_name","address","city","state",
+    "country","postcode","phone","dob","email","password"
+]
+registers = []
+for fname in sorted(glob.glob("AU-*.csv")):
+    df = pd.read_csv(fname)
+    if "email" in df.columns:
+        for email in df["email"]:
+            registers.append({
+                "first_name": "Test",
+                "last_name": "User",
+                "address": "NoAddress",
+                "city": "HCM",
+                "state": "SG",
+                "country": "VN",
+                "postcode": "123456",
+                "phone": "0123456789",
+                "dob": "2000-01-01",
+                "email": email,
+                "password": "Password123"
+            })
+pd.DataFrame(registers)[fields].to_csv("register-data.csv", index=False)
+EOF
+
+      # 9) Bulk Register users via Postman data file
+      - name: Bulk Register users via Postman data file
         run: |
           mkdir -p results
+          postman collection run Register.postman_collection.json \
+            --environment HW07.postman_environment.json \
+            --global-var "base_url=http://localhost:8000/api" \
+            --iteration-data register-data.csv \
+            --reporters cli,junit \
+            --reporter-junit-export results/bulk-register.xml
+
+      # 10) Run Postman Collections for Login and Forget Password
+      - name: Run Postman Collections (Login & Forget Password)
+        run: |
           postman collection run Login.postman_collection.json \
             --environment HW07.postman_environment.json \
             --global-var "base_url=http://localhost:8000/api" \
             --reporters cli,junit \
             --reporter-junit-export results/login.xml
-
-          postman collection run Register.postman_collection.json \
-            --environment HW07.postman_environment.json \
-            --global-var "base_url=http://localhost:8000/api" \
-            --reporters cli,junit \
-            --reporter-junit-export results/register.xml
-
           postman collection run "Forget password.postman_collection.json" \
             --environment HW07.postman_environment.json \
             --global-var "base_url=http://localhost:8000/api" \
             --reporters cli,junit \
             --reporter-junit-export results/forgot-password.xml
 
-      # 9) Upload JUnit reports
+      # 11) Upload JUnit reports
       - name: Upload JUnit reports
         uses: actions/upload-artifact@v4
         with:
