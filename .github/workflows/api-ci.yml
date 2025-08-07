@@ -78,13 +78,11 @@ jobs:
 
       # 7) Run Postman Collections
       - name: Run Postman Collections
-        env:
-          BASE_URL: ${{ secrets.BASE_URL }}
-          ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
         run: |
           mkdir -p results
           postman collection run Login.postman_collection.json \
             --environment HW07.postman_environment.json \
+            --global-var "base_url=http://localhost:8000/api" \
             --reporters cli,junit \
             --reporter-junit-export results/login.xml
 
