@@ -78,6 +78,8 @@ jobs:
 
       # 7) Run Postman Collections
       - name: Run Postman Collections
+        env:
+          ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
         run: |
           mkdir -p results
           postman collection run Login.postman_collection.json \
@@ -88,13 +90,16 @@ jobs:
 
           postman collection run Register.postman_collection.json \
             --environment HW07.postman_environment.json \
+            --global-var "base_url=http://localhost:8000/api" \
             --reporters cli,junit \
             --reporter-junit-export results/register.xml
 
           postman collection run "Forget password.postman_collection.json" \
             --environment HW07.postman_environment.json \
+            --global-var "base_url=http://localhost:8000/api" \
             --reporters cli,junit \
             --reporter-junit-export results/forgot-password.xml
+
 
       # 8) Upload JUnit reports
       - name: Upload JUnit reports
