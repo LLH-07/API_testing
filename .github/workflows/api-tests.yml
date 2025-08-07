@@ -53,7 +53,7 @@ jobs:
             --reporter-junit-export reports/forgot-AU-14-17.xml
 
       - name: Upload all reports
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: api-test-reports
           path: reports/*.xml
