@@ -43,22 +43,33 @@ jobs:
           docker compose -f docker-compose.yml up -d --build \
             || docker-compose -f docker-compose.yml up -d --build
 
+      - name: Install PHP dependencies
+        working-directory: practice-software-testing
+        run: |
+          set -euxo pipefail
+          docker compose run --rm composer clear-cache || true
+          for i in 1 2 3; do
+            docker compose run --rm composer install \
+              --no-dev \
+              --optimize-autoloader \
+              --ignore-platform-req=ext-ffi \
+              --prefer-source && break
+            echo "⚠️  Composer install failed (attempt $i), retrying…"
+            sleep 5
+          done
+
       - name: Setup Laravel environment file
         working-directory: practice-software-testing
         run: |
-          # Nếu .env.example có sẵn, copy; nếu .env đã có sẵn thì thôi
-          if [ -f .env.example ]; then cp .env.example .env; fi
-          # Override DB_HOST thành tên service trong docker-compose
+          cp .env.example .env
           sed -i 's/DB_HOST=.*/DB_HOST=mysql/' .env
-          # Sinh APP_KEY nếu chưa có
           docker compose exec -T laravel-api php artisan key:generate --ansi
 
       - name: Wait for Database to be ready
         working-directory: practice-software-testing
         run: |
-          echo "⏳ Waiting for MySQL to accept connections…"
           until docker compose exec -T mysql mysqladmin ping -h"localhost" --silent; do
-            echo "   Still waiting…"
+            echo "Waiting for MySQL…"
             sleep 2
           done
 
@@ -72,21 +83,6 @@ jobs:
         run: |
           docker compose exec -T laravel-api mkdir -p storage/logs
           docker compose exec -T laravel-api chmod -R 777 storage bootstrap/cache
-
-      - name: Install PHP dependencies
-        working-directory: practice-software-testing
-        run: |
-          set -euxo pipefail
-          docker compose run --rm composer clear-cache || true
-          for i in 1 2 3; do
-            docker compose run --rm composer install \
-              --no-dev \
-              --optimize-autoloader \
-              --ignore-platform-req=ext-ffi \
-              --prefer-source && break
-            echo "⚠️  Composer install failed (attempt $i), retrying in 5s…"
-            sleep 5
-          done
 
       - name: Run Postman collection
         working-directory: practice-software-testing
@@ -103,4 +99,3 @@ jobs:
         with:
           name: postman-results
           path: practice-software-testing/results/
-
