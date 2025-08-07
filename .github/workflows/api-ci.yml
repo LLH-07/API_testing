@@ -8,70 +8,67 @@ on:
 
 jobs:
   validate-csv:
+    name: Validate CSV files
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
       - name: Validate CSV headers & empty rows
         run: |
           for f in AU-*.csv; do
-            echo "Checking $f"
+            echo "🔍 Checking $f"
             hdr=$(head -n1 "$f" | tr -d '\r')
             if [[ "$f" == "AU-14-17.csv" ]]; then
               [[ "$hdr" == "email" ]] || { echo "Invalid header in $f: '$hdr' (expected 'email')" && exit 1; }
             else
-              echo "$hdr" | grep -q ',' || { echo "No CSV header or missing commas in $f (got: '$hdr')" && exit 1; }
+              echo "$hdr" | grep -q ',' || { echo "Missing commas in header of $f (got: '$hdr')" && exit 1; }
             fi
             awk '/^$/ {print "Empty line in '"$f"'"; exit 1}' "$f"
           done
 
   postman-tests:
-    needs: validate-csv
+    name: Spin up App & Run Postman Tests
     runs-on: ubuntu-latest
+    needs: validate-csv
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-      # 1. Build & start your API server
-      - name: Build & Start API
-        run: |
-          # → Example for a Spring Boot JAR
-          # mvn -B package -DskipTests
-          # java -jar target/your-api.jar --server.port=8091 &
-          
-          # → OR example for a Node.js app
-          # npm install
-          # npm start &
-          
-          # (Pick the commands that apply to your project)
-      
-      # 2. Wait for the server to listen on 8091
+      # 1) Buildx enables docker-compose with newer features
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      # 2) Start all services defined in docker-compose.yml
+      - name: Build & start Docker Compose
+        run: docker compose up -d --build
+
+      # 3) Wait for API to listen on 8091
       - name: Wait for API to be ready
         run: |
-          for i in {1..15}; do
+          for i in {1..20}; do
             if nc -z localhost 8091; then
               echo "API is up!"
               exit 0
             fi
-            echo "Waiting for API..."
-            sleep 2
+            echo "Waiting for API (attempt $i)..."
+            sleep 3
           done
-          echo "API did not start in time" && exit 1
+          echo "API did not start in time. Container logs:"
+          docker compose logs api || true
+          exit 1
 
-      # 3. Setup Node & install Postman CLI
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '16'
+      # 4) Install Postman CLI
       - name: Install Postman CLI
         run: curl -sL https://dl-cli.pstmn.io/install/linux64.sh \| sh
 
-      # 4. Login to Postman
+      # 5) Login to Postman
       - name: Postman login
         env:
           POSTMAN_API_KEY: ${{ secrets.POSTMAN_API_KEY }}
         run: postman login --with-api-key "$POSTMAN_API_KEY"
 
-      # 5. Run the collections
+      # 6) Run your Postman Collections
       - name: Run Postman Collections
         env:
           BASE_URL: ${{ secrets.BASE_URL }}
@@ -82,16 +79,18 @@ jobs:
             --environment HW07.postman_environment.json \
             --reporters cli,junit \
             --reporter-junit-export results/login.xml
+
           postman collection run Register.postman_collection.json \
             --environment HW07.postman_environment.json \
             --reporters cli,junit \
             --reporter-junit-export results/register.xml
+
           postman collection run "Forget password.postman_collection.json" \
             --environment HW07.postman_environment.json \
             --reporters cli,junit \
             --reporter-junit-export results/forgot-password.xml
 
-      # 6. Publish the JUnit reports
+      # 7) Publish JUnit reports
       - name: Upload JUnit reports
         uses: actions/upload-artifact@v4
         with:
