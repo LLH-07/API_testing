@@ -95,33 +95,37 @@ jobs:
       - name: Convert AU-*.csv to register-data.csv
         run: |
           pip install pandas
-          python <<EOF
+          echo "
 import pandas as pd
 import glob
 fields = [
-    "first_name","last_name","address","city","state",
-    "country","postcode","phone","dob","email","password"
+    'first_name','last_name','address','city','state',
+    'country','postcode','phone','dob','email','password'
 ]
 registers = []
-for fname in sorted(glob.glob("AU-*.csv")):
+for fname in sorted(glob.glob('AU-*.csv')):
     df = pd.read_csv(fname)
-    if "email" in df.columns:
-        for email in df["email"]:
+    if 'email' in df.columns:
+        for email in df['email']:
             registers.append({
-                "first_name": "Test",
-                "last_name": "User",
-                "address": "NoAddress",
-                "city": "HCM",
-                "state": "SG",
-                "country": "VN",
-                "postcode": "123456",
-                "phone": "0123456789",
-                "dob": "2000-01-01",
-                "email": email,
-                "password": "Password123"
+                'first_name': 'Test',
+                'last_name': 'User',
+                'address': 'NoAddress',
+                'city': 'HCM',
+                'state': 'SG',
+                'country': 'VN',
+                'postcode': '123456',
+                'phone': '0123456789',
+                'dob': '2000-01-01',
+                'email': email,
+                'password': 'Password123'
             })
-pd.DataFrame(registers)[fields].to_csv("register-data.csv", index=False)
-EOF
+pd.DataFrame(registers)[fields].to_csv('register-data.csv', index=False)
+" > register.py
+          python register.py
+
+
+
 
       # 9) Bulk Register users via Postman data file
       - name: Bulk Register users via Postman data file
