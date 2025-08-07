@@ -14,24 +14,26 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 1. Checkout luôn repo backend vào folder api để build Docker Compose
       - name: Checkout backend (practice-software-testing)
         uses: actions/checkout@v4
         with:
           repository: testsmith-io/practice-software-testing
           path: api
 
-      # 2. Sửa file .env để đảm bảo chạy đúng sprint5-with-bugs
       - name: Switch to sprint5-with-bugs
         run: |
           sed -i 's/^SPRINT=.*/SPRINT=sprint5-with-bugs/' ./api/.env
 
-      # 3. Build & start all services
       - name: Start Docker Compose
         working-directory: ./api
         run: docker compose up --build -d
 
-      # 4. Đợi API sẵn sàng (8091)
+      # Đảm bảo migrate và seed DB!
+      - name: Migrate & Seed Database
+        working-directory: ./api
+        run: |
+          docker compose exec laravel-api php artisan migrate:fresh --seed
+
       - name: Wait for API ready
         run: |
           sudo apt-get update && sudo apt-get install -y curl
@@ -45,29 +47,17 @@ jobs:
           done
           echo "API did not start in time" && exit 1
 
-      # 5. Cài Postman CLI
       - name: Install Postman CLI
         run: |
           curl -sL https://dl-cli.pstmn.io/install/linux64.sh | bash
 
-      # 6. Login vào Postman CLI
       - name: Login to Postman CLI
         run: postman login --with-api-key ${{ secrets.POSTMAN_API_KEY }}
 
-      # 7. Tạo thư mục reports
       - name: Create reports directory
         run: mkdir -p reports
 
-      # 8. Chạy các bộ Postman collection test
-      - name: Run Login tests
-        run: |
-          postman collection run \
-            ./Login.postman_collection.json \
-            -e ./HW07.postman_environment.json \
-            --iteration-data ./login-data.csv \
-            --reporters cli,junit \
-            --reporter-junit-export reports/login-results.xml
-
+      # CHẠY REGISTER TRƯỚC!
       - name: Run Register tests
         run: |
           postman collection run \
@@ -76,6 +66,15 @@ jobs:
             --iteration-data ./register-data.csv \
             --reporters cli,junit \
             --reporter-junit-export reports/register-results.xml
+
+      - name: Run Login tests
+        run: |
+          postman collection run \
+            ./Login.postman_collection.json \
+            -e ./HW07.postman_environment.json \
+            --iteration-data ./login-data.csv \
+            --reporters cli,junit \
+            --reporter-junit-export reports/login-results.xml
 
       - name: Run Forgot Password tests
         run: |
@@ -86,7 +85,6 @@ jobs:
             --reporters cli,junit \
             --reporter-junit-export reports/forgot-password-results.xml
 
-      # 9. Upload báo cáo JUnit
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -94,7 +92,6 @@ jobs:
           name: postman-junit-reports
           path: reports/*.xml
 
-      # 10. Shutdown docker sau khi xong
       - name: Shutdown Docker Compose
         if: always()
         working-directory: ./api
