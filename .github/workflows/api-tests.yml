@@ -1,0 +1,63 @@
+name: CI · Postman API Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  postman-tests:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Postman CLI
+        run: |
+          powershell.exe -NoProfile -InputFormat None -ExecutionPolicy AllSigned -Command "
+            [System.Net.ServicePointManager]::SecurityProtocol = 3072;
+            iex ((New-Object System.Net.WebClient).DownloadString('https://dl-cli.pstmn.io/install/win64.ps1'))"
+
+      - name: Login to Postman CLI
+        env:
+          POSTMAN_API_KEY: ${{ secrets.POSTMAN_API_KEY }}
+        run: postman login --with-api-key $POSTMAN_API_KEY
+
+      - name: Create reports directory
+        run: mkdir reports
+
+      - name: Run Login tests
+        run: |
+          postman collection run \
+            "./Login.postman_collection.json" \
+            -e "./HW07.postman_environment.json" \
+            --iteration-data "./login-data.csv" \
+            --reporters cli,junit \
+            --reporter-junit-export "reports/login-results.xml"
+
+      - name: Run Register tests
+        run: |
+          postman collection run \
+            "./Register.postman_collection.json" \
+            -e "./HW07.postman_environment.json" \
+            --iteration-data "./register-data.csv" \
+            --reporters cli,junit \
+            --reporter-junit-export "reports/register-results.xml"
+
+      - name: Run Forgot Password tests
+        run: |
+          postman collection run \
+            "./Forget password.postman_collection.json" \
+            -e "./HW07.postman_environment.json" \
+            --iteration-data "./forgot-password-data.csv" \
+            --reporters cli,junit \
+            --reporter-junit-export "reports/forgot-password-results.xml"
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: postman-junit-reports
+          path: reports/*.xml
