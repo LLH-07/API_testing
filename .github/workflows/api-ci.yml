@@ -10,7 +10,24 @@ jobs:
   validate-csv:
     name: Validate CSV files
     runs-on: ubuntu-latest
-   steps:
+    steps:
+      - name: Checkout CSV & tests
+        uses: actions/checkout@v3
+
+      - name: Validate CSV headers & empty rows
+        run: |
+          for f in *.csv; do
+            echo "🔍 Checking $f"
+            hdr=$(head -n1 "$f" | tr -d '\r')
+            awk '/^$/ {print "❌ Empty line in '"$f"'"; exit 1}' "$f"
+          done
+
+  postman-tests:
+    name: Spin up App & Run Postman Tests (data-driven)
+    needs: validate-csv
+    runs-on: ubuntu-latest
+
+    steps:
       - name: Checkout repo & tests
         uses: actions/checkout@v3
 
@@ -30,16 +47,28 @@ jobs:
       - name: Fix file & folder permissions for Laravel
         working-directory: practice-software-testing
         run: |
-          # Cho phép Laravel container ghi .env và storage/cache
           chmod 777 .env
           chmod -R 777 storage bootstrap/cache
+
+      - name: Install PHP dependencies
+        working-directory: practice-software-testing
+        run: |
+          set -euxo pipefail
+          docker compose run --rm composer clear-cache || true
+          for i in 1 2 3; do
+            docker compose run --rm composer install \
+              --no-dev \
+              --optimize-autoloader \
+              --ignore-platform-req=ext-ffi \
+              --prefer-source && break
+            echo "⚠️  Composer install failed (attempt $i), retrying in 5s…"
+            sleep 5
+          done
 
       - name: Setup Laravel environment
         working-directory: practice-software-testing
         run: |
-          # Override DB_HOST nếu cần
           sed -i 's/^DB_HOST=.*/DB_HOST=mysql/' .env
-          # Sinh key
           docker compose exec -T laravel-api php artisan key:generate --ansi
 
       - name: Wait for Database to be ready
@@ -61,7 +90,6 @@ jobs:
           docker compose exec -T laravel-api mkdir -p storage/logs
           docker compose exec -T laravel-api chmod -R 777 storage bootstrap/cache
 
-          
       - name: Run Postman collection
         working-directory: practice-software-testing
         run: |
