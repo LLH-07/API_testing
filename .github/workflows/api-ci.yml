@@ -18,8 +18,17 @@ jobs:
         run: |
           for f in *.csv; do
             echo "🔍 Checking $f"
-            hdr=$(head -n1 "$f" | tr -d '\r')
-            awk '/^$/ {print "❌ Empty line in '"$f"'"; exit 1}' "$f"
+            # Check for empty lines
+            if grep -qE '^$' "$f"; then
+              echo "❌ Empty line found in $f"
+              exit 1
+            fi
+            # Validate headers
+            header=$(head -1 "$f")
+            if [[ -z $header ]]; then
+              echo "❌ Missing headers in $f"
+              exit 1
+            fi
           done
 
   postman-tests:
@@ -58,6 +67,14 @@ jobs:
             sleep 5
           done
 
+      - name: Setup environment and permissions
+        working-directory: practice-software-testing
+        run: |
+          cp .env.example .env
+          docker compose exec -T laravel-api php artisan key:generate
+          docker compose exec -T laravel-api chmod -R 777 storage bootstrap/cache
+          docker compose exec -T laravel-api mkdir -p storage/logs
+
       - name: Migrate & seed database
         working-directory: practice-software-testing
         run: |
@@ -65,13 +82,17 @@ jobs:
 
       - name: Wait for API to be ready
         run: |
-          for i in {1..20}; do
-            nc -z localhost 8000 && { echo "✅ API is up!"; exit 0; }
-            echo "⏳ Waiting for API (attempt $i)…"
-            sleep 3
+          echo "Waiting for API to become ready..."
+          for i in {1..15}; do
+            if curl -sSf http://localhost:8000 >/dev/null; then
+              echo "✅ API is ready!"
+              exit 0
+            fi
+            echo "⏳ API not ready yet (attempt $i/15)..."
+            sleep 5
           done
-          echo "❌ API failed to start. Showing last logs:"
-          docker compose -f practice-software-testing/docker-compose.yml logs laravel-api --tail=50
+          echo "❌ API failed to start after 15 attempts"
+          docker compose -f practice-software-testing/docker-compose.yml logs laravel-api
           exit 1
 
       - name: Install Postman CLI
@@ -115,3 +136,14 @@ jobs:
         with:
           name: api-test-reports
           path: results/*.xml
+
+      - name: Capture Docker logs on failure
+        if: ${{ failure() }}
+        working-directory: practice-software-testing
+        run: |
+          docker compose logs --no-color > docker-logs.txt
+          echo "::group::Docker Compose Logs"
+          cat docker-logs.txt
+          echo "::endgroup::"
+          echo "::warning::Application logs saved"
+        continue-on-error: true
