@@ -11,7 +11,7 @@ jobs:
     name: Validate CSV files
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: Checkout current repo
         uses: actions/checkout@v3
 
       - name: Validate CSV headers & empty rows
@@ -28,27 +28,30 @@ jobs:
           done
 
   postman-tests:
-    name: Spin up App & Run Postman Tests
+    name: Spin up TestSmith App & Run Postman Tests
     needs: validate-csv
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      # 1) Checkout CSV/collections
+      - name: Checkout current repo
         uses: actions/checkout@v3
 
-      # (1) Buildx – chỉ cần nếu bạn dùng BuildKit features, không bắt buộc
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+      # 2) Checkout practice-software-testing repo into ./practice-software-testing
+      - name: Checkout TestSmith practice repo
+        uses: actions/checkout@v3
+        with:
+          repository: testsmith-io/practice-software-testing
+          path: practice-software-testing
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-      # (2) Build & start containers, chắc chắn chỉ rõ file compose
+      # 3) Build & start with Docker Compose (v2 plugin or fallback v1)
       - name: Build & start Docker Compose
+        working-directory: practice-software-testing
         run: |
-          # Nếu máy đã có plugin 'docker compose':
-          docker compose -f docker-compose.yml -f docker-compose.override.yml up -d --build \
-          || \
-          # fallback sang lệnh v1 nếu plugin không tồn tại
-          docker-compose -f docker-compose.yml -f docker-compose.override.yml up -d --build
+          docker compose -f docker-compose.yml up -d --build \
+            || docker-compose -f docker-compose.yml up -d --build
 
-      # (3) Wait for the Laravel API to accept connections
+      # 4) Wait for API on port 8091
       - name: Wait for API to be ready
         run: |
           for i in {1..20}; do
@@ -59,21 +62,21 @@ jobs:
             echo "⏳ Waiting for API (attempt $i)..."
             sleep 3
           done
-          echo "❌ API did not start in time. Showing last logs from the laravel-api container:"
-          docker compose logs laravel-api --tail=50 || true
+          echo "❌ API did not start in time. Dumping container logs:"
+          docker compose -f practice-software-testing/docker-compose.yml logs api --tail=50 || true
           exit 1
 
-      # (4) Install Postman CLI
+      # 5) Install Postman CLI
       - name: Install Postman CLI
-        run: curl -sL https://dl-cli.pstmn.io/install/linux64.sh \| sh
+        run: curl -sL https://dl-cli.pstmn.io/install/linux64.sh | sh
 
-      # (5) Login to Postman
+      # 6) Login to Postman
       - name: Postman login
         env:
           POSTMAN_API_KEY: ${{ secrets.POSTMAN_API_KEY }}
         run: postman login --with-api-key "$POSTMAN_API_KEY"
 
-      # (6) Run your Postman Collections
+      # 7) Run Postman Collections
       - name: Run Postman Collections
         env:
           BASE_URL: ${{ secrets.BASE_URL }}
@@ -95,7 +98,7 @@ jobs:
             --reporters cli,junit \
             --reporter-junit-export results/forgot-password.xml
 
-      # (7) Upload JUnit reports
+      # 8) Upload JUnit reports
       - name: Upload JUnit reports
         uses: actions/upload-artifact@v4
         with:
