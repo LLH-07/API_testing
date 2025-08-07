@@ -43,6 +43,12 @@ jobs:
           docker compose -f docker-compose.yml up -d --build \
             || docker-compose -f docker-compose.yml up -d --build
 
+      - name: Fix storage permission & ensure logs dir
+        working-directory: practice-software-testing
+        run: |
+          docker compose exec -T laravel-api mkdir -p storage/logs
+          docker compose exec -T laravel-api chmod -R 777 storage bootstrap/cache
+
       - name: Install PHP dependencies
         working-directory: practice-software-testing
         run: |
@@ -92,22 +98,6 @@ jobs:
             --reporters cli,junit \
             --reporter-junit-export results/register.xml
 
-
-      - name: Show Laravel logs after Register
-        if: failure()
-        working-directory: practice-software-testing
-        run: |
-          docker compose logs laravel-api --tail=100
-
-      - name: Show Laravel log
-        if: failure()
-        working-directory: practice-software-testing
-        run: |
-          docker compose exec -T laravel-api tail -n 50 storage/logs/laravel.log
-
-
-            
-
       - name: Run Login Collection (data-driven)
         run: |
           postman collection run Login.postman_collection.json \
@@ -125,6 +115,13 @@ jobs:
             --global-var "base_url=http://localhost:8000/api" \
             --reporters cli,junit \
             --reporter-junit-export results/forgot-password.xml
+
+      - name: Show Laravel log (debug)
+        if: failure()
+        working-directory: practice-software-testing
+        run: |
+          docker compose exec -T laravel-api ls -al storage/logs || true
+          docker compose exec -T laravel-api tail -n 50 storage/logs/laravel.log || true
 
       - name: Upload JUnit reports
         uses: actions/upload-artifact@v4
