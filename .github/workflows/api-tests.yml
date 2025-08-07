@@ -28,15 +28,16 @@ jobs:
         working-directory: ./api
         run: docker compose up --build -d
 
-      - name: Install composer dependencies
+      - name: Composer install (via docker compose run)
         working-directory: ./api
         run: |
-          docker compose exec laravel-api composer install --no-interaction --no-ansi --no-progress
+          docker compose run --rm laravel-api composer install --no-interaction --no-ansi --no-progress
 
       - name: Migrate & Seed Database
         working-directory: ./api
         run: |
           docker compose exec laravel-api php artisan migrate:fresh --seed
+
 
 
       - name: Wait for API ready
