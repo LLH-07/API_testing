@@ -16,49 +16,38 @@ jobs:
 
       - name: Validate CSV headers & empty rows
         run: |
-          for f in AU-*.csv; do
+          for f in *.csv; do
             echo "🔍 Checking $f"
             hdr=$(head -n1 "$f" | tr -d '\r')
-            if [[ "$f" == "AU-14-17.csv" ]]; then
-              [[ "$hdr" == "email" ]] || { echo "❌ Invalid header in $f: '$hdr' (expected 'email')" && exit 1; }
-            else
-              echo "$hdr" | grep -q ',' || { echo "❌ Missing commas in header of $f (got: '$hdr')" && exit 1; }
-            fi
             awk '/^$/ {print "❌ Empty line in '"$f"'"; exit 1}' "$f"
           done
 
   postman-tests:
-    name: Spin up App & Run Postman Tests
+    name: Spin up App & Run Postman Tests (data-driven)
     needs: validate-csv
     runs-on: ubuntu-latest
     steps:
-      # 1) Checkout CSV/tests repo
-      - name: Checkout CSV & tests
+      - name: Checkout repo & tests
         uses: actions/checkout@v3
 
-      # 2) Checkout practice-software-testing repo
-      - name: Checkout TestSmith practice repo
+      - name: Checkout practice-software-testing repo
         uses: actions/checkout@v3
         with:
           repository: testsmith-io/practice-software-testing
           path: practice-software-testing
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      # 3) Build & start containers
       - name: Build & start Docker Compose
         working-directory: practice-software-testing
         run: |
           docker compose -f docker-compose.yml up -d --build \
             || docker-compose -f docker-compose.yml up -d --build
 
-      # 4) Install PHP dependencies into laravel-api via composer service
       - name: Install PHP dependencies
         working-directory: practice-software-testing
         run: |
           set -euxo pipefail
-          # clear any old cache
           docker compose run --rm composer clear-cache || true
-          # try up to 3 times, using --prefer-source to avoid ZIP extraction
           for i in 1 2 3; do
             docker compose run --rm composer install \
               --no-dev \
@@ -69,7 +58,6 @@ jobs:
             sleep 5
           done
 
-      # 5) Wait for API to be ready on port 8000
       - name: Wait for API to be ready
         run: |
           for i in {1..20}; do
@@ -81,78 +69,42 @@ jobs:
           docker compose -f practice-software-testing/docker-compose.yml logs laravel-api --tail=50
           exit 1
 
-      # 6) Install Postman CLI
       - name: Install Postman CLI
         run: curl -sL https://dl-cli.pstmn.io/install/linux64.sh | sh
 
-      # 7) Postman login
       - name: Postman login
         env:
           POSTMAN_API_KEY: ${{ secrets.POSTMAN_API_KEY }}
         run: postman login --with-api-key "$POSTMAN_API_KEY"
 
-      # 8) Convert AU-*.csv to register-data.csv
-      - name: Convert AU-*.csv to register-data.csv
-        run: |
-          pip install pandas
-          cat > register.py <<EOF
-import pandas as pd
-import glob
-fields = [
-    "first_name","last_name","address","city","state",
-    "country","postcode","phone","dob","email","password"
-]
-registers = []
-for fname in sorted(glob.glob("AU-*.csv")):
-    df = pd.read_csv(fname)
-    if "email" in df.columns:
-        for email in df["email"]:
-            registers.append({
-                "first_name": "Test",
-                "last_name": "User",
-                "address": "NoAddress",
-                "city": "HCM",
-                "state": "SG",
-                "country": "VN",
-                "postcode": "123456",
-                "phone": "0123456789",
-                "dob": "2000-01-01",
-                "email": email,
-                "password": "Password123"
-            })
-pd.DataFrame(registers)[fields].to_csv("register-data.csv", index=False)
-EOF
-          python register.py
-
-
-
-
-      # 9) Bulk Register users via Postman data file
-      - name: Bulk Register users via Postman data file
+      - name: Run Register Collection (data-driven)
         run: |
           mkdir -p results
           postman collection run Register.postman_collection.json \
             --environment HW07.postman_environment.json \
-            --global-var "base_url=http://localhost:8000/api" \
             --iteration-data register-data.csv \
+            --global-var "base_url=http://localhost:8000/api" \
             --reporters cli,junit \
-            --reporter-junit-export results/bulk-register.xml
+            --reporter-junit-export results/register.xml
 
-      # 10) Run Postman Collections for Login and Forget Password
-      - name: Run Postman Collections (Login & Forget Password)
+      - name: Run Login Collection (data-driven)
         run: |
           postman collection run Login.postman_collection.json \
             --environment HW07.postman_environment.json \
+            --iteration-data login-data.csv \
             --global-var "base_url=http://localhost:8000/api" \
             --reporters cli,junit \
             --reporter-junit-export results/login.xml
+
+      - name: Run Forgot Password Collection (data-driven)
+        run: |
           postman collection run "Forget password.postman_collection.json" \
             --environment HW07.postman_environment.json \
+            --iteration-data forgot-password-data.csv \
             --global-var "base_url=http://localhost:8000/api" \
             --reporters cli,junit \
             --reporter-junit-export results/forgot-password.xml
 
-      # 11) Upload JUnit reports
       - name: Upload JUnit reports
         uses: actions/upload-artifact@v4
         with:
