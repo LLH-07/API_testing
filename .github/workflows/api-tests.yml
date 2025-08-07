@@ -1,4 +1,4 @@
-name: CI · Postman API Tests
+name: CI · Postman API Tests with Docker Compose
 
 on:
   push:
@@ -11,72 +11,91 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1) Grab your code (tests + API)
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2) Install your API’s dependencies
-      #    ← adjust if you’re on Python/Ruby/Go, etc.
-      - name: Install API dependencies
-        working-directory: ./api            # ← change to where your server code lives
-        run: npm ci                         # ← or pip install -r requirements.txt
+      # 1. Checkout luôn repo backend vào folder api để build Docker Compose
+      - name: Checkout backend (practice-software-testing)
+        uses: actions/checkout@v4
+        with:
+          repository: testsmith-io/practice-software-testing
+          path: api
 
-      # 3) Start your server in the background
-      - name: Start API server
+      # 2. Sửa file .env để đảm bảo chạy đúng sprint5-with-bugs
+      - name: Switch to sprint5-with-bugs
+        run: |
+          sed -i 's/^SPRINT=.*/SPRINT=sprint5-with-bugs/' ./api/.env
+
+      # 3. Build & start all services
+      - name: Start Docker Compose
         working-directory: ./api
-        run: |
-          npm start -- --port 8091 &       # ← replace with your actual start command
-      # 4) Wait until it’s responding
-      - name: Wait for API to be live
-        run: |
-          npm install -g wait-on
-          wait-on http://localhost:8091/api/health  # ← or base_url + "/users/login", etc.
+        run: docker-compose up --build -d
 
-      # 5) Install Postman CLI
+      # 4. Đợi API sẵn sàng (8091)
+      - name: Wait for API ready
+        run: |
+          sudo apt-get update && sudo apt-get install -y curl
+          for i in {1..20}; do
+            if curl -s http://localhost:8091/api/documentation > /dev/null; then
+              echo "API is ready!";
+              exit 0;
+            fi
+            echo "Waiting for API... ($i/20)"
+            sleep 5
+          done
+          echo "API did not start in time" && exit 1
+
+      # 5. Cài Postman CLI
       - name: Install Postman CLI
         run: |
           curl -sL https://dl-cli.pstmn.io/install/linux64.sh | bash
 
-      # 6) Authenticate to Postman
+      # 6. Login vào Postman CLI
       - name: Login to Postman CLI
         run: postman login --with-api-key ${{ secrets.POSTMAN_API_KEY }}
 
-      # 7) Make a reports folder
+      # 7. Tạo thư mục reports
       - name: Create reports directory
         run: mkdir -p reports
 
-      # 8) Run your 3 collections
+      # 8. Chạy các bộ Postman collection test
       - name: Run Login tests
         run: |
           postman collection run \
-            Login.postman_collection.json \
-            -e HW07.postman_environment.json \
-            --iteration-data login-data.csv \
+            ./Login.postman_collection.json \
+            -e ./HW07.postman_environment.json \
+            --iteration-data ./login-data.csv \
             --reporters cli,junit \
             --reporter-junit-export reports/login-results.xml
 
       - name: Run Register tests
         run: |
           postman collection run \
-            Register.postman_collection.json \
-            -e HW07.postman_environment.json \
-            --iteration-data register-data.csv \
+            ./Register.postman_collection.json \
+            -e ./HW07.postman_environment.json \
+            --iteration-data ./register-data.csv \
             --reporters cli,junit \
             --reporter-junit-export reports/register-results.xml
 
       - name: Run Forgot Password tests
         run: |
           postman collection run \
-            "Forget password.postman_collection.json" \
-            -e HW07.postman_environment.json \
-            --iteration-data forgot-password-data.csv \
+            "./Forget password.postman_collection.json" \
+            -e ./HW07.postman_environment.json \
+            --iteration-data ./forgot-password-data.csv \
             --reporters cli,junit \
             --reporter-junit-export reports/forgot-password-results.xml
 
-      # 9) Upload JUnit XMLs as artifacts
+      # 9. Upload báo cáo JUnit
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: postman-junit-reports
           path: reports/*.xml
+
+      # 10. Shutdown docker sau khi xong
+      - name: Shutdown Docker Compose
+        if: always()
+        working-directory: ./api
+        run: docker-compose down
