@@ -1,0 +1,54 @@
+{
+	"info": {
+		"_postman_id": "e1084ad0-a72d-462f-974b-e5280fb285b2",
+		"name": "Register",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "47366391",
+		"_collection_link": "https://lylienhoa2004-3052748.postman.co/workspace/Li%C3%AAn-Hoa-L%C3%BD's-Workspace~334354a2-3f7d-473a-8672-dc29c34b9e7d/collection/47366391-e1084ad0-a72d-462f-974b-e5280fb285b2?action=share&source=collection_link&creator=47366391"
+	},
+	"item": [
+		{
+			"name": "register",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status is 201\", () => pm.response.to.have.status(201));\r",
+							"const json = pm.response.json();\r",
+							"pm.test(\"Có trường id hoặc user\", () => {\r",
+							"  pm.expect(json).to.have.any.keys(\"id\", \"user\");\r",
+							"});"
+						],
+						"type": "text/javascript",
+						"packages": {}
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n  \"first_name\": \"{{first_name}}\",\r\n  \"last_name\": \"{{last_name}}\",\r\n  \"address\": \"{{address}}\",\r\n  \"city\": \"{{city}}\",\r\n  \"state\": \"{{state}}\",\r\n  \"country\": \"{{country}}\",\r\n  \"postcode\": \"{{postcode}}\",\r\n  \"phone\": \"{{phone}}\",\r\n  \"dob\": \"{{dob}}\",\r\n  \"email\": \"{{email}}\",\r\n  \"password\": \"{{password}}\"\r\n}\r\n",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{base_url}}/users/register",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"users",
+						"register"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}
