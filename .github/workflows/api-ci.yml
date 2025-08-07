@@ -55,7 +55,22 @@ jobs:
       - name: Install PHP dependencies
         working-directory: practice-software-testing
         run: |
-          docker compose -f docker-compose.yml run --rm composer
+          set -euxo pipefail
+          # clear any old cache
+          docker compose run --rm composer clear-cache || true
+
+          # try up to 3 times, using --prefer-source to avoid ZIP extraction
+          for i in 1 2 3; do
+            docker compose run --rm composer install \
+              --no-dev \
+              --optimize-autoloader \
+              --ignore-platform-req=ext-ffi \
+              --prefer-source && break
+
+            echo "⚠️  Composer install failed (attempt $i), retrying in 5s…"
+            sleep 5
+          done
+
 
       # 5) Wait for API to be ready on port 8000
       - name: Wait for API to be ready
