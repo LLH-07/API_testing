@@ -29,7 +29,7 @@ jobs:
       # 3. Build & start all services
       - name: Start Docker Compose
         working-directory: ./api
-        run: docker-compose up --build -d
+        run: docker compose up --build -d
 
       # 4. Đợi API sẵn sàng (8091)
       - name: Wait for API ready
@@ -98,4 +98,4 @@ jobs:
       - name: Shutdown Docker Compose
         if: always()
         working-directory: ./api
-        run: docker-compose down
+        run: docker compose down
