@@ -21,14 +21,14 @@ jobs:
             hdr=$(head -n1 "$f" | tr -d '\r')
             if [[ "$f" == "AU-14-17.csv" ]]; then
               if [[ "$hdr" != "email" ]]; then
-                echo "❌ Invalid header in $f: '$hdr' (expected 'email')" && exit 1
+                echo "Invalid header in $f: '$hdr' (expected 'email')" && exit 1
               fi
             else
               if ! echo "$hdr" | grep -q ','; then
-                echo "❌ No CSV header or missing commas in $f (got: '$hdr')" && exit 1
+                echo "No CSV header or missing commas in $f (got: '$hdr')" && exit 1
               fi
             fi
-            awk '/^$/ {print "❌ Empty line in '"$f"'"; exit 1}' "$f"
+            awk '/^$/ {print "Empty line in '"$f"'"; exit 1}' "$f"
           done
 
   postman-tests:
@@ -47,12 +47,11 @@ jobs:
       - name: Install Postman CLI
         run: |
           curl -sL https://dl-cli.pstmn.io/install/linux64.sh | sh
-        # Install script chính thức của Postman CLI trên Linux :contentReference[oaicite:0]{index=0}
 
       - name: Postman login
         env:
           POSTMAN_API_KEY: ${{ secrets.POSTMAN_API_KEY }}
-        run: postman login --apikey "$POSTMAN_API_KEY"
+        run: postman login --with-api-key "$POSTMAN_API_KEY"  # dùng đúng option :contentReference[oaicite:0]{index=0}
 
       - name: Run Collections
         env:
