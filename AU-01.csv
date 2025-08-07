@@ -1,0 +1,6 @@
+first_name,last_name,address,city,state,country,postcode,phone,dob,email,password
+Hoa,Ly,Duong So 1,Ho Chi Minh,Ho Chi Minh,Viet Nam,100000,912345678,1/1/1990,hoa.ly@example.com,supersecret1
+Minh,Tran,456 Nguyen Hue,Ho Chi Minh,Ho Chi Minh,Viet Nam,700000,987654321,5/15/1985,minh.tran@example.com,P@ssw0rd2
+Nguyen,Anh,789 Le Loi,Ha Noi,Ha Noi,Viet Nam,100000,911222333,12/1/1992,anh.nguyen@example.com,Secure123
+John,Doe,123 Main St,New York,NY,USA,10001,12025550123,6/10/1990,john.doe@example.com,JohnPass44
+Anne,ONeill,234 Oak Rd,Dublin,Leinster,Ireland,D02X285,3.54E+11,3/22/1988,anne.oneill@example.ie,AnneMarie85
