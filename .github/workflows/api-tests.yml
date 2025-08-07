@@ -1,0 +1,50 @@
+jobs:
+  run-postman:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with: { node-version: '16' }
+      - name: Install Newman
+        run: npm install -g newman
+
+      # --- REGISTER: chạy 2 file data-driven ---
+      - name: Register Tests (AU-01)
+        run: |
+          newman run Register.postman_collection.json \
+            -e HW07.postman_environment.json \
+            --iteration-data AU-01.csv \
+            --reporters cli,junit \
+            --reporter-junit-export reports/register-AU-01.xml
+
+      - name: Register Tests (AU-02-09)
+        run: |
+          newman run Register.postman_collection.json \
+            -e HW07.postman_environment.json \
+            --iteration-data AU-02-09.csv \
+            --reporters cli,junit \
+            --reporter-junit-export reports/register-AU-02-09.xml
+
+      # --- LOGIN: chạy file thứ 3 ---
+      - name: Login Tests (AU-10-13)
+        run: |
+          newman run Login.postman_collection.json \
+            -e HW07.postman_environment.json \
+            --iteration-data AU-10-13.csv \
+            --reporters cli,junit \
+            --reporter-junit-export reports/login-AU-10-13.xml
+
+      # --- FORGOT PASSWORD: chạy file thứ 4 ---
+      - name: Forgot-Password Tests (AU-14-17)
+        run: |
+          newman run "Forget password.postman_collection.json" \
+            -e HW07.postman_environment.json \
+            --iteration-data AU-14-17.csv \
+            --reporters cli,junit \
+            --reporter-junit-export reports/forgot-AU-14-17.xml
+
+      - name: Upload all reports
+        uses: actions/upload-artifact@v3
+        with:
+          name: api-test-reports
+          path: reports/*.xml
