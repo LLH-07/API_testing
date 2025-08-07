@@ -58,6 +58,11 @@ jobs:
             sleep 5
           done
 
+      - name: Migrate & seed database
+        working-directory: practice-software-testing
+        run: |
+          docker compose exec -T laravel-api php artisan migrate:fresh --seed
+
       - name: Wait for API to be ready
         run: |
           for i in {1..20}; do
