@@ -92,6 +92,15 @@ jobs:
             --reporters cli,junit \
             --reporter-junit-export results/register.xml
 
+
+      - name: Show Laravel logs after Register
+        if: failure()
+        working-directory: practice-software-testing
+        run: |
+          docker compose logs laravel-api --tail=100
+
+            
+
       - name: Run Login Collection (data-driven)
         run: |
           postman collection run Login.postman_collection.json \
