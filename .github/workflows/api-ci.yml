@@ -58,12 +58,15 @@ jobs:
             sleep 5
           done
 
-      - name: Setup Laravel environment file
+      - name: Setup Laravel environment
         working-directory: practice-software-testing
         run: |
-          cp .env.example .env
-          sed -i 's/DB_HOST=.*/DB_HOST=mysql/' .env
+          # Dùng file .env đã có sẵn trong repo
+          # Override DB_HOST thành tên service trong docker-compose
+          sed -i 's/^DB_HOST=.*/DB_HOST=mysql/' .env
+          # Sinh APP_KEY (nếu cần) để Laravel không lỗi thiếu key
           docker compose exec -T laravel-api php artisan key:generate --ansi
+
 
       - name: Wait for Database to be ready
         working-directory: practice-software-testing
