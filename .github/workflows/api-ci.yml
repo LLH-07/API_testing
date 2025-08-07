@@ -26,8 +26,6 @@ jobs:
     name: Spin up App & Run Postman Tests (data-driven)
     needs: validate-csv
     runs-on: ubuntu-latest
-    services:
-      # (nếu bạn muốn tận dụng service containers tự động, nhưng ở đây dùng docker compose)
     steps:
       - name: Checkout repo & tests
         uses: actions/checkout@v3
