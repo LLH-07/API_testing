@@ -1,4 +1,4 @@
-name: CI · Postman API Tests with Docker Compose
+name: CI · Postman API Tests with Docker Compose & Composer on Host
 
 on:
   push:
@@ -11,35 +11,44 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1. Lấy code repo test (repo hiện tại)
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # 2. Lấy code backend vào folder api/
       - name: Checkout backend (practice-software-testing)
         uses: actions/checkout@v4
         with:
           repository: testsmith-io/practice-software-testing
           path: api
 
+      # 3. Sửa .env cho đúng sprint5-with-bugs
       - name: Switch to sprint5-with-bugs
         run: |
           sed -i 's/^SPRINT=.*/SPRINT=sprint5-with-bugs/' ./api/.env
 
+      # 4. Build và chạy Docker Compose (chạy nền)
       - name: Start Docker Compose
         working-directory: ./api
         run: docker compose up --build -d
 
-      - name: Composer install (via docker compose run)
-        working-directory: ./api
+      # 5. Cài composer trên host (máy Ubuntu của CI)
+      - name: Install Composer (host)
         run: |
-          docker compose run --rm laravel-api composer install --no-interaction --no-ansi --no-progress
+          curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
 
+      # 6. composer install trên host để tạo vendor/ (mount vào container)
+      - name: Composer install on host
+        working-directory: ./api
+        run: composer install --no-interaction --no-ansi --no-progress
+
+      # 7. migrate và seed db bằng docker exec
       - name: Migrate & Seed Database
         working-directory: ./api
         run: |
           docker compose exec laravel-api php artisan migrate:fresh --seed
 
-
-
+      # 8. Đợi API sẵn sàng (có thể rút ngắn thời gian chờ nếu cần)
       - name: Wait for API ready
         run: |
           sudo apt-get update && sudo apt-get install -y curl
@@ -53,17 +62,20 @@ jobs:
           done
           echo "API did not start in time" && exit 1
 
+      # 9. Cài Postman CLI
       - name: Install Postman CLI
         run: |
           curl -sL https://dl-cli.pstmn.io/install/linux64.sh | bash
 
+      # 10. Login Postman CLI
       - name: Login to Postman CLI
         run: postman login --with-api-key ${{ secrets.POSTMAN_API_KEY }}
 
+      # 11. Tạo thư mục reports
       - name: Create reports directory
         run: mkdir -p reports
 
-      # CHẠY REGISTER TRƯỚC!
+      # 12. CHẠY TEST: register -> login -> forgot password
       - name: Run Register tests
         run: |
           postman collection run \
@@ -91,6 +103,7 @@ jobs:
             --reporters cli,junit \
             --reporter-junit-export reports/forgot-password-results.xml
 
+      # 13. Upload báo cáo JUnit
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -98,6 +111,7 @@ jobs:
           name: postman-junit-reports
           path: reports/*.xml
 
+      # 14. Dọn dẹp docker sau khi xong
       - name: Shutdown Docker Compose
         if: always()
         working-directory: ./api
