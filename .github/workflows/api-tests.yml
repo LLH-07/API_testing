@@ -2,9 +2,11 @@ name: CI · Postman API Tests
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
   pull_request:
-    branches: [ main ]
+    branches:
+      - main
 
 jobs:
   postman-tests:
@@ -21,13 +23,14 @@ jobs:
             iex ((New-Object System.Net.WebClient).DownloadString('https://dl-cli.pstmn.io/install/win64.ps1'))"
 
       - name: Login to Postman CLI
+        # sử dụng inline secret để đảm bảo PowerShell lấy đúng
         run: postman login --with-api-key ${{ secrets.POSTMAN_API_KEY }}
 
-
       - name: Create reports directory
-        run: mkdir reports
+        run: mkdir -p reports
 
       - name: Run Login tests
+        shell: bash
         run: |
           postman collection run \
             "./Login.postman_collection.json" \
@@ -37,6 +40,7 @@ jobs:
             --reporter-junit-export "reports/login-results.xml"
 
       - name: Run Register tests
+        shell: bash
         run: |
           postman collection run \
             "./Register.postman_collection.json" \
@@ -46,6 +50,7 @@ jobs:
             --reporter-junit-export "reports/register-results.xml"
 
       - name: Run Forgot Password tests
+        shell: bash
         run: |
           postman collection run \
             "./Forget password.postman_collection.json" \
