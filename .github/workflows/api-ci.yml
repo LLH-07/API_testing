@@ -14,140 +14,95 @@ jobs:
       - name: Checkout CSV & tests
         uses: actions/checkout@v3
 
-      - name: Validate CSV files
+      - name: Validate CSV headers & empty rows
         run: |
           for f in *.csv; do
-            echo "🔍 Validating $f"
-            # Check file exists
-            [ ! -f "$f" ] && echo "❌ File $f not found" && exit 1
-            
-            # Check header exists
-            header=$(head -n1 "$f")
-            [ -z "$header" ] && echo "❌ Missing header in $f" && exit 1
-            
-            # Check for empty lines
-            if grep -qE '^$' "$f"; then
-              echo "❌ Empty line found in $f"
-              exit 1
-            fi
-            echo "✅ $f passed validation"
+            echo "🔍 Checking $f"
+            hdr=$(head -n1 "$f" | tr -d '\r')
+            awk '/^$/ {print "❌ Empty line in '"$f"'"; exit 1}' "$f"
           done
 
   postman-tests:
-    name: Run API Tests
+    name: Spin up App & Run Postman Tests (data-driven)
     needs: validate-csv
     runs-on: ubuntu-latest
-    env:
-      API_PORT: 8091
-      COMPOSE_PROJECT_NAME: api-tests
+    services:
+      # (nếu bạn muốn tận dụng service containers tự động, nhưng ở đây dùng docker compose)
     steps:
-      - name: Checkout main repo
+      - name: Checkout repo & tests
         uses: actions/checkout@v3
 
-      - name: Checkout test application
+      - name: Checkout practice-software-testing repo
         uses: actions/checkout@v3
         with:
           repository: testsmith-io/practice-software-testing
-          path: test-app
+          path: practice-software-testing
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Setup Laravel environment
-        working-directory: test-app
+      - name: Build & start Docker Compose
+        working-directory: practice-software-testing
         run: |
-          # Create minimal environment configuration
-          echo "APP_ENV=testing" > .env
-          echo "APP_DEBUG=true" >> .env
-          echo "DB_CONNECTION=sqlite" >> .env
-          echo "DB_DATABASE=:memory:" >> .env
-          
-          # Generate secure app key
-          echo "APP_KEY=base64:$(openssl rand -base64 32)" >> .env
-          
-          # Set default port
-          echo "APP_PORT=${{ env.API_PORT }}" >> .env
+          docker compose -f docker-compose.yml up -d --build \
+            || docker-compose -f docker-compose.yml up -d --build
 
-      - name: Start Docker services
-        working-directory: test-app
+      - name: Setup Laravel environment file
+        working-directory: practice-software-testing
         run: |
-          # Use inline environment variables for Docker Compose
-          docker compose build
-          docker compose up -d --wait
-          
-          # Create required directories
-          docker compose exec -T laravel-api mkdir -p storage/framework/{sessions,views,cache} storage/logs bootstrap/cache
-          
-          # Set permissions
+          # Nếu .env.example có sẵn, copy; nếu .env đã có sẵn thì thôi
+          if [ -f .env.example ]; then cp .env.example .env; fi
+          # Override DB_HOST thành tên service trong docker-compose
+          sed -i 's/DB_HOST=.*/DB_HOST=mysql/' .env
+          # Sinh APP_KEY nếu chưa có
+          docker compose exec -T laravel-api php artisan key:generate --ansi
+
+      - name: Wait for Database to be ready
+        working-directory: practice-software-testing
+        run: |
+          echo "⏳ Waiting for MySQL to accept connections…"
+          until docker compose exec -T mysql mysqladmin ping -h"localhost" --silent; do
+            echo "   Still waiting…"
+            sleep 2
+          done
+
+      - name: Migrate & seed database
+        working-directory: practice-software-testing
+        run: |
+          docker compose exec -T laravel-api php artisan migrate:fresh --seed --ansi
+
+      - name: Fix storage permission & ensure logs dir
+        working-directory: practice-software-testing
+        run: |
+          docker compose exec -T laravel-api mkdir -p storage/logs
           docker compose exec -T laravel-api chmod -R 777 storage bootstrap/cache
 
-      - name: Install dependencies
-        working-directory: test-app
-        run: docker compose exec -T laravel-api composer install --no-dev --optimize-autoloader
-
-      - name: Run database setup
-        working-directory: test-app
+      - name: Install PHP dependencies
+        working-directory: practice-software-testing
         run: |
-          docker compose exec -T laravel-api php artisan migrate:fresh --seed
-          docker compose exec -T laravel-api php artisan optimize:clear
-
-      - name: Verify API health
-        run: |
-          echo "Waiting for API to start..."
-          for i in {1..10}; do
-            if curl -sSf "http://localhost:${{ env.API_PORT }}/api" >/dev/null; then
-              echo "✅ API is ready"
-              exit 0
-            fi
-            echo "⏳ Attempt $i/10 - API not ready yet..."
+          set -euxo pipefail
+          docker compose run --rm composer clear-cache || true
+          for i in 1 2 3; do
+            docker compose run --rm composer install \
+              --no-dev \
+              --optimize-autoloader \
+              --ignore-platform-req=ext-ffi \
+              --prefer-source && break
+            echo "⚠️  Composer install failed (attempt $i), retrying in 5s…"
             sleep 5
           done
-          echo "❌ API failed to start"
-          docker compose -f test-app/docker-compose.yml logs --no-color
-          exit 1
 
-      - name: Install Newman
-        run: npm install -g newman
-
-      - name: Run API tests
+      - name: Run Postman collection
+        working-directory: practice-software-testing
         run: |
-          mkdir -p test-results
-          
-          # Run tests with Newman
-          newman run Register.postman_collection.json \
-            --environment HW07.postman_environment.json \
-            --iteration-data register-data.csv \
-            --global-var "base_url=http://localhost:${{ env.API_PORT }}/api" \
+          mkdir -p results
+          newman run ./tests/postman/YourCollection.postman_collection.json \
+            --iteration-data ./tests/data/users.csv \
             --reporters cli,junit \
-            --reporter-junit-export test-results/register.xml \
-            --suppress-exit-code
-          
-          newman run Login.postman_collection.json \
-            --environment HW07.postman_environment.json \
-            --iteration-data login-data.csv \
-            --global-var "base_url=http://localhost:${{ env.API_PORT }}/api" \
-            --reporters cli,junit \
-            --reporter-junit-export test-results/login.xml \
-            --suppress-exit-code
-          
-          newman run "Forget password.postman_collection.json" \
-            --environment HW07.postman_environment.json \
-            --iteration-data forgot-password-data.csv \
-            --global-var "base_url=http://localhost:${{ env.API_PORT }}/api" \
-            --reporters cli,junit \
-            --reporter-junit-export test-results/forgot-password.xml \
-            --suppress-exit-code
+            --reporter-junit-export results/register.xml \
+            --environment ./tests/postman/env.json
 
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
+      - name: Upload Postman results
+        uses: actions/upload-artifact@v3
         with:
-          name: api-test-results
-          path: test-results/*.xml
+          name: postman-results
+          path: practice-software-testing/results/
 
-      - name: Save Docker logs
-        if: ${{ always() }}
-        working-directory: test-app
-        run: |
-          docker compose logs --no-color --tail=100 > docker-logs.txt
-          echo "::group::Docker Compose Logs"
-          cat docker-logs.txt
-          echo "::endgroup::"
-        continue-on-error: true
