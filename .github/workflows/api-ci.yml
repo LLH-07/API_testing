@@ -14,136 +14,136 @@ jobs:
       - name: Checkout CSV & tests
         uses: actions/checkout@v3
 
-      - name: Validate CSV headers & empty rows
+      - name: Validate CSV files
         run: |
           for f in *.csv; do
-            echo "🔍 Checking $f"
+            echo "🔍 Validating $f"
+            # Check file exists
+            [ ! -f "$f" ] && echo "❌ File $f not found" && exit 1
+            
+            # Check header exists
+            header=$(head -n1 "$f")
+            [ -z "$header" ] && echo "❌ Missing header in $f" && exit 1
+            
             # Check for empty lines
             if grep -qE '^$' "$f"; then
               echo "❌ Empty line found in $f"
               exit 1
             fi
-            # Validate headers
-            header=$(head -1 "$f")
-            if [[ -z $header ]]; then
-              echo "❌ Missing headers in $f"
-              exit 1
-            fi
+            echo "✅ $f passed validation"
           done
 
   postman-tests:
-    name: Spin up App & Run Postman Tests (data-driven)
+    name: Run API Tests
     needs: validate-csv
     runs-on: ubuntu-latest
+    env:
+      API_PORT: 8000
+      COMPOSE_PROJECT_NAME: api-tests
     steps:
-      - name: Checkout repo & tests
+      - name: Checkout main repo
         uses: actions/checkout@v3
 
-      - name: Checkout practice-software-testing repo
+      - name: Checkout test application
         uses: actions/checkout@v3
         with:
           repository: testsmith-io/practice-software-testing
-          path: practice-software-testing
+          path: test-app
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build & start Docker Compose
-        working-directory: practice-software-testing
+      - name: Setup Docker environment
+        working-directory: test-app
         run: |
-          docker compose -f docker-compose.yml up -d --build \
-            || docker-compose -f docker-compose.yml up -d --build
+          # Create .env if missing
+          if [ ! -f .env ]; then
+            if [ -f .env.example ]; then
+              cp .env.example .env
+            else
+              echo "APP_ENV=testing" > .env
+              echo "APP_KEY=" >> .env
+              echo "DB_CONNECTION=sqlite" >> .env
+              echo "DB_DATABASE=:memory:" >> .env
+            fi
+          fi
+          
+          # Generate app key if needed
+          if ! grep -q 'APP_KEY=base64' .env; then
+            echo "Generating application key..."
+            echo "APP_KEY=base64:$(openssl rand -base64 32)" >> .env
+          fi
+
+      - name: Start Docker services
+        working-directory: test-app
+        run: |
+          docker compose up -d --build --wait
+          docker compose exec -T laravel-api mkdir -p storage/logs
+          docker compose exec -T laravel-api chmod -R 777 storage bootstrap/cache
 
       - name: Install PHP dependencies
-        working-directory: practice-software-testing
+        working-directory: test-app
         run: |
-          set -euxo pipefail
-          docker compose run --rm composer clear-cache || true
-          for i in 1 2 3; do
-            docker compose run --rm composer install \
-              --no-dev \
-              --optimize-autoloader \
-              --ignore-platform-req=ext-ffi \
-              --prefer-source && break
-            echo "⚠️  Composer install failed (attempt $i), retrying in 5s…"
-            sleep 5
-          done
+          docker compose run --rm composer install \
+            --no-dev \
+            --optimize-autoloader \
+            --ignore-platform-req=ext-ffi \
+            --no-interaction
 
-      - name: Setup environment and permissions
-        working-directory: practice-software-testing
-        run: |
-          cp .env.example .env
-          docker compose exec -T laravel-api php artisan key:generate
-          docker compose exec -T laravel-api chmod -R 777 storage bootstrap/cache
-          docker compose exec -T laravel-api mkdir -p storage/logs
+      - name: Run database migrations
+        working-directory: test-app
+        run: docker compose exec -T laravel-api php artisan migrate:fresh --seed
 
-      - name: Migrate & seed database
-        working-directory: practice-software-testing
+      - name: Verify API health
         run: |
-          docker compose exec -T laravel-api php artisan migrate:fresh --seed
-
-      - name: Wait for API to be ready
-        run: |
-          echo "Waiting for API to become ready..."
+          echo "Waiting for API to start..."
           for i in {1..15}; do
-            if curl -sSf http://localhost:8000 >/dev/null; then
-              echo "✅ API is ready!"
+            if curl -sSf "http://localhost:${{ env.API_PORT }}/api" >/dev/null; then
+              echo "✅ API is ready"
               exit 0
             fi
-            echo "⏳ API not ready yet (attempt $i/15)..."
+            echo "⏳ Attempt $i/15 - API not ready yet..."
             sleep 5
           done
-          echo "❌ API failed to start after 15 attempts"
-          docker compose -f practice-software-testing/docker-compose.yml logs laravel-api
+          echo "❌ API failed to start"
+          docker compose -f test-app/docker-compose.yml logs
           exit 1
 
-      - name: Install Postman CLI
-        run: curl -sL https://dl-cli.pstmn.io/install/linux64.sh | sh
+      - name: Install Newman
+        run: npm install -g newman
 
-      - name: Postman login
-        env:
-          POSTMAN_API_KEY: ${{ secrets.POSTMAN_API_KEY }}
-        run: postman login --with-api-key "$POSTMAN_API_KEY"
-
-      - name: Run Register Collection (data-driven)
+      - name: Run API tests
         run: |
-          mkdir -p results
-          postman collection run Register.postman_collection.json \
-            --environment HW07.postman_environment.json \
-            --iteration-data register-data.csv \
-            --global-var "base_url=http://localhost:8000/api" \
-            --reporters cli,junit \
-            --reporter-junit-export results/register.xml
+          mkdir -p test-results
+          
+          # Helper function to run tests
+          run_test() {
+            collection=$1
+            data=$2
+            result_file=$3
+            
+            newman run "$collection" \
+              --environment "HW07.postman_environment.json" \
+              --iteration-data "$data" \
+              --global-var "base_url=http://localhost:${{ env.API_PORT }}/api" \
+              --reporters cli,junit \
+              --reporter-junit-export "test-results/$result_file.xml"
+          }
+          
+          run_test "Register.postman_collection.json" "register-data.csv" "register"
+          run_test "Login.postman_collection.json" "login-data.csv" "login"
+          run_test "Forget password.postman_collection.json" "forgot-password-data.csv" "forgot-password"
 
-      - name: Run Login Collection (data-driven)
-        run: |
-          postman collection run Login.postman_collection.json \
-            --environment HW07.postman_environment.json \
-            --iteration-data login-data.csv \
-            --global-var "base_url=http://localhost:8000/api" \
-            --reporters cli,junit \
-            --reporter-junit-export results/login.xml
-
-      - name: Run Forgot Password Collection (data-driven)
-        run: |
-          postman collection run "Forget password.postman_collection.json" \
-            --environment HW07.postman_environment.json \
-            --iteration-data forgot-password-data.csv \
-            --global-var "base_url=http://localhost:8000/api" \
-            --reporters cli,junit \
-            --reporter-junit-export results/forgot-password.xml
-
-      - name: Upload JUnit reports
+      - name: Upload test results
         uses: actions/upload-artifact@v4
         with:
-          name: api-test-reports
-          path: results/*.xml
+          name: api-test-results
+          path: test-results/*.xml
 
-      - name: Capture Docker logs on failure
+      - name: Save Docker logs on failure
         if: ${{ failure() }}
-        working-directory: practice-software-testing
+        working-directory: test-app
         run: |
-          docker compose logs --no-color > docker-logs.txt
-          echo "::group::Docker Compose Logs"
+          docker compose logs --no-color --tail=100 > docker-logs.txt
+          echo "::group::Docker Logs"
           cat docker-logs.txt
           echo "::endgroup::"
-          echo "::warning::Application logs saved"
         continue-on-error: true
