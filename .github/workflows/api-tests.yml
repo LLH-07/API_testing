@@ -1,4 +1,4 @@
-name: CI · Postman API Tests with Docker Compose & Composer on Host (SPRINT5)
+name: CI · Postman API Tests with Docker Compose (No Composer Host)
 
 on:
   push:
@@ -27,15 +27,6 @@ jobs:
       - name: Start Docker Compose
         working-directory: ./api
         run: docker compose up --build -d
-
-      - name: Install Composer (host)
-        run: |
-          curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
-
-      # CHÚ Ý: composer install ở đúng nơi chứa source!
-      - name: Composer install on host
-        working-directory: ./api/sprint5-with-bugs
-        run: composer install --no-interaction --no-ansi --no-progress
 
       - name: Migrate & Seed Database
         working-directory: ./api
