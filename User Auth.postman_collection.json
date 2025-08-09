@@ -1,0 +1,192 @@
+{
+	"info": {
+		"_postman_id": "56d6ef6c-eae4-4c5d-b0c9-b31411f712cb",
+		"name": "User Auth",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "47366391",
+		"_collection_link": "https://lylienhoa2004-3052748.postman.co/workspace/Li%C3%AAn-Hoa-L%C3%BD's-Workspace~334354a2-3f7d-473a-8672-dc29c34b9e7d/collection/47366391-56d6ef6c-eae4-4c5d-b0c9-b31411f712cb?action=share&source=collection_link&creator=47366391"
+	},
+	"item": [
+		{
+			"name": "register",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status is 201\", () => pm.response.to.have.status(201));\r",
+							"const json = pm.response.json();\r",
+							"pm.test(\"Có trường id hoặc user\", () => {\r",
+							"  pm.expect(json).to.have.any.keys(\"id\", \"user\");\r",
+							"});"
+						],
+						"type": "text/javascript",
+						"packages": {}
+					}
+				},
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							""
+						],
+						"type": "text/javascript",
+						"packages": {}
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n  \"first_name\": \"{{first_name}}\",\r\n  \"last_name\": \"{{last_name}}\",\r\n  \"address\": \"{{address}}\",\r\n  \"city\": \"{{city}}\",\r\n  \"state\": \"{{state}}\",\r\n  \"country\": \"{{country}}\",\r\n  \"postcode\": \"{{postcode}}\",\r\n  \"phone\": \"{{phone}}\",\r\n  \"dob\": \"{{dob}}\",\r\n  \"email\": \"{{email}}\",\r\n  \"password\": \"{{password}}\"\r\n}\r\n",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{base_url}}/users/register",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"users",
+						"register"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "login",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"let resText = pm.response.text();\r",
+							"let json = {};\r",
+							"try { json = pm.response.json(); } catch (e) {}\r",
+							"\r",
+							"pm.environment.set(\"accessToken\", json.access_token);\r",
+							"\r",
+							"// 1. Kiểm tra có access_token\r",
+							"pm.test(\"Có access_token trả về\", () => {\r",
+							"    pm.expect(json).to.have.property(\"access_token\");\r",
+							"});\r",
+							"\r",
+							"// 2. Kiểm tra token_type\r",
+							"pm.test(\"token_type là bearer\", () => {\r",
+							"    pm.expect(json.token_type).to.eql(\"bearer\");\r",
+							"});\r",
+							"\r",
+							"// 3. (Tùy) Kiểm tra expires_in > 0\r",
+							"pm.test(\"expires_in > 0\", () => {\r",
+							"    pm.expect(json.expires_in).to.be.a(\"number\").and.to.be.above(0);\r",
+							"});"
+						],
+						"type": "text/javascript",
+						"packages": {}
+					}
+				},
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							""
+						],
+						"type": "text/javascript",
+						"packages": {}
+					}
+				}
+			],
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n    \"email\": \"{{email}}\",\r\n    \"password\": \"{{password}}\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{base_url}}/users/login",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"users",
+						"login"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "forgot-password",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"let json = pm.response.json();\r",
+							"\r",
+							"// 1. status\r",
+							"pm.test(\"Status is 200\", () => {\r",
+							"    pm.response.to.have.status(200);\r",
+							"});\r",
+							"\r",
+							"// 2. success = true\r",
+							"pm.test(\"success = true\", () => {\r",
+							"    pm.expect(json).to.have.property(\"success\", true);\r",
+							"});\r",
+							""
+						],
+						"type": "text/javascript",
+						"packages": {}
+					}
+				},
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n  \"email\": \"{{email}}\"\r\n}\r\n",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{base_url}}/users/forgot-password",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"users",
+						"forgot-password"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}
